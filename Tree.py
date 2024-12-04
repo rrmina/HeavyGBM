@@ -24,6 +24,14 @@ class DecisionTree():
         }
         self.impurity_function = impurity_functions[impurity_measure]
 
+        # And Prediction Storage Functions
+        pred_storage_functions = {
+            'gini': self._store_classification_pred,
+            'entropy': self._store_classification_pred,
+            'variance': self._store_regression_pred
+        }
+        self.pred_storage_function = pred_storage_functions[impurity_measure]
+
         # Number of targets for counting purpose
         self.num_targets =  num_targets # to be determined
 
@@ -35,6 +43,14 @@ class DecisionTree():
         self.right_node = None
         self.splitting_feature = None
         self.splitting_threshold = None
+        self.pred = None
+
+    ######################################################################################################
+    #
+    #                                         Training Methods
+    #
+    ######################################################################################################
+
 
     # Currently writing for training only
     # I will ammend this to enable prediction
@@ -49,7 +65,8 @@ class DecisionTree():
 
         # Check stopping criterion
         if self.check_stopping_criterion(X, y) is True:
-            return None
+            self.pred = self.pred_storage_function(y)
+            return self
 
         # Get the Decision Split and the Data Split
         data_splits, feature_index, threshold = self.find_best_split(X, y)
@@ -57,6 +74,9 @@ class DecisionTree():
             return None
         self.splitting_feature = feature_index
         self.splitting_threshold = threshold
+
+        # Store the prediction
+        self.pred = self.pred_storage_function(y)
 
         # Build Left and Right (Children) Tree
         (X_left, y_left), (X_right, y_right) = data_splits 
@@ -107,11 +127,12 @@ class DecisionTree():
         best_split = None
         best_impurity = np.inf
         best_threshold = None
+        best_feature = None
 
         num_samples, num_feautures = X.shape[0], X.shape[1]
         for i in range(num_feautures):
 
-            # Can be improved by using buckets / histograms
+            # TO BE IMPROVED by using buckets / histograms
             # Find the threshold with the least impurity
             thresholds = np.unique(X[:, i])      
             for threshold in thresholds:
@@ -133,16 +154,28 @@ class DecisionTree():
                 if impurity < best_impurity:
                     best_split = (left_data, right_data)
                     best_impurity = impurity
+                    best_feature = i
                     best_threshold = threshold
+
+        # If no best split
+        # Return (data split, feature/feature name, feature threshold)
+        if best_split is None:
+            return None, None, None
+
+        # If same number of samples after best split, return None
+        # TO BE IMPROVED
+        # Do we need this?
+        num_samples_left = best_split[0][0].shape[0]
+        num_samples_right = best_split[1][0].shape[0]
+        if (num_samples_left == 0) or (num_samples_right == 0):
+            print("im here")
+            return None, None, None
 
         # Normally we would compare the parent's impurities to the 
         # children's impurities. But mathematically, the children's impurities 
         # will always be less or equal to the parent's impurities
 
-        # Return (data split, feature/feature name, feature threshold)
-        if best_split is None:
-            return None, None, None
-        return best_split, i, threshold
+        return best_split, best_feature, best_threshold
 
     
     def split_data(self,
@@ -162,6 +195,65 @@ class DecisionTree():
         X_right, y_right = X[right_indices], y[right_indices]
 
         return (X_left, y_left), (X_right, y_right)
+
+    ######################################################################################################
+    #
+    #                               Prediction and Prediction Storage Methods
+    #
+    ######################################################################################################    
+
+    def predict(self, X):
+        
+        # If node is a leaf
+        if self.left_node is None and self.right_node is None:
+            return self.pred
+        
+        # Else traverse the tree by recursion
+        is_left = X[self.splitting_feature] <= self.splitting_threshold
+        if is_left:
+            return self.left_node.predict(X)
+        else:
+            return self.right_node.predict(X)
+
+    def _store_classification_pred(self, y):
+        target_dist = self._compute_target_dist(y)
+        best_class = np.argmax(target_dist)
+
+        return best_class
+
+    def _store_regression_pred(self, y):
+        best_pred = np.mean(y)
+        
+        return best_pred
+
+
+    ######################################################################################################
+    #
+    #                                     Visualization Methods
+    #
+    ######################################################################################################    
+
+    def visualize_decision_nodes(self, depth: int = 0):
+
+        # Indentation to represent tree depth
+        indent = " " * (4 * depth)
+
+        # If the node is a leaf, print the prediction
+        if self.left_node is None and self.right_node is None:
+            print(f"{indent}Leaf Node: Prediction = {self.pred}")
+            return
+
+        # Print the current node's feature and threshold
+        print(f"{indent}Node: Feature[{self.splitting_feature}] <= {self.splitting_threshold}")
+
+        # Recur for left and right children
+        if self.left_node is not None:
+            print(f"{indent}  Left:")
+            self.left_node.visualize_decision_nodes(depth + 1)
+        
+        if self.right_node is not None:
+            print(f"{indent}  Right:")
+            self.right_node.visualize_decision_nodes(depth + 1)
 
 
     ######################################################################################################
