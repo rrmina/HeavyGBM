@@ -5,10 +5,10 @@ from typing import Tuple, Union
 
 class DecisionTree():
     def __init__(self,
-        min_samples_per_node = 5,
-        max_depth = 5,
-        impurity_measure = 'gini',
-        num_targets = None
+        min_samples_per_node: int = 5,
+        max_depth: int = 5,
+        impurity_measure: str = 'gini',
+        num_targets: int = None
     ) -> None:
 
         # Decision Tree Hyperparameters
@@ -176,7 +176,6 @@ class DecisionTree():
         # will always be less or equal to the parent's impurities
 
         return best_split, best_feature, best_threshold
-
     
     def split_data(self,
         X: np.ndarray,
@@ -202,7 +201,9 @@ class DecisionTree():
     #
     ######################################################################################################    
 
-    def predict(self, X):
+    def predict(self, 
+        X: np.ndarray
+    ) -> Union[int, float]:
         
         # If node is a leaf
         if self.left_node is None and self.right_node is None:
@@ -215,17 +216,20 @@ class DecisionTree():
         else:
             return self.right_node.predict(X)
 
-    def _store_classification_pred(self, y):
+    def _store_classification_pred(self, 
+        y: np.ndarray   # int
+    ) -> int:
         target_dist = self._compute_target_dist(y)
         best_class = np.argmax(target_dist)
 
         return best_class
 
-    def _store_regression_pred(self, y):
+    def _store_regression_pred(self, 
+        y: np.ndarray   # float
+    ) -> float:
         best_pred = np.mean(y)
         
         return best_pred
-
 
     ######################################################################################################
     #
@@ -233,7 +237,9 @@ class DecisionTree():
     #
     ######################################################################################################    
 
-    def visualize_decision_nodes(self, depth: int = 0):
+    def visualize_decision_nodes(self, 
+        depth: int = 0
+    ) -> None:
 
         # Indentation to represent tree depth
         indent = " " * (4 * depth)
