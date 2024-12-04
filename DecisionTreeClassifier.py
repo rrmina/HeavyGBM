@@ -3,7 +3,7 @@ from __future__ import annotations # For type hinting my own class!
 import numpy as np
 from typing import Tuple, Union
 
-class DecisionTree():
+class DecisionTreeClassifier():
     def __init__(self,
         min_samples_per_node: int = 5,
         max_depth: int = 5,
@@ -36,7 +36,7 @@ class DecisionTree():
         self.num_targets =  num_targets # to be determined
 
         # Class Variables
-        self.depth = 0
+        self.depth = 1
 
         # Node Variables
         self.left_node = None
@@ -51,27 +51,27 @@ class DecisionTree():
     #
     ######################################################################################################
 
-
-    # Currently writing for training only
-    # I will ammend this to enable prediction
     def build_tree(self, 
         X: np.ndarray, 
         y: np.ndarray,
-        depth: int = 0
-    ) -> DecisionTree:
+        depth: int = 1
+    ) -> DecisionTreeClassifier:
         
         # Store depth
         self.depth = depth
 
         # Check stopping criterion
         if self.check_stopping_criterion(X, y) is True:
+            # Store the prediction
             self.pred = self.pred_storage_function(y)
             return self
 
         # Get the Decision Split and the Data Split
         data_splits, feature_index, threshold = self.find_best_split(X, y)
         if data_splits is None:
-            return None
+            # Store the prediction
+            self.pred = self.pred_storage_function(y)
+            return self
         self.splitting_feature = feature_index
         self.splitting_threshold = threshold
 
@@ -80,14 +80,14 @@ class DecisionTree():
 
         # Build Left and Right (Children) Tree
         (X_left, y_left), (X_right, y_right) = data_splits 
-        self.left_node = DecisionTree(
+        self.left_node = DecisionTreeClassifier(
             min_samples_per_node = self.min_samples_per_node,
             max_depth = self.max_depth,
             impurity_measure = self.impurity_measure,
             num_targets = self.num_targets
         ).build_tree(X_left, y_left, depth + 1)     # Add 1 to depth
 
-        self.right_node = DecisionTree(
+        self.right_node = DecisionTreeClassifier(
             min_samples_per_node = self.min_samples_per_node,
             max_depth = self.max_depth,
             impurity_measure = self.impurity_measure,
@@ -104,12 +104,12 @@ class DecisionTree():
         
         # Check max depth
         if self.depth > self.max_depth:
-            print("Stopping with max_depth: ", self.max_depth)
+            # print("Stopping with max_depth: ", self.max_depth)
             return True
         
         # Check minimum number of samples per node
         if X.shape[0] <= self.min_samples_per_node:
-            print("Stopping with min_samples_per_node: ", X.shape[0])
+            # print("Stopping with min_samples_per_node: ", X.shape[0])
             return True
         
         return False
@@ -129,33 +129,52 @@ class DecisionTree():
         best_threshold = None
         best_feature = None
 
-        num_samples, num_feautures = X.shape[0], X.shape[1]
-        for i in range(num_feautures):
+        num_samples, num_features = X.shape[0], X.shape[1]
+
+        for i in range(num_features):
 
             # TO BE IMPROVED by using buckets / histograms
+            # [Done] Improvement #1 : Sort the values and use Counter
+            # [WIP] Improvement #2 : Using buckets
             # Find the threshold with the least impurity
-            thresholds = np.unique(X[:, i])      
-            for threshold in thresholds:
-                left_data, right_data = self.split_data(X, i, y, threshold)
-                X_left, y_left = left_data
-                X_right, y_right = right_data
+            X_i = X[:, i]
+            sorted_indices = np.argsort(X_i)
+            thresholds, y_sorted = X_i[sorted_indices], y[sorted_indices]
 
-                # Skip the lowest and highest values because no split
-                if (X_left.shape[0] == 0) or (X_right.shape[0] == 0):
-                    continue
-
-                # Compute impurity
-                left_impurity = self.impurity_function(y_left)
-                right_impurity = self.impurity_function(y_right)
-                impurity = (y_left.shape[0] / y.shape[0]) * left_impurity + \
-                    (y_right.shape[0] / y.shape[0]) * right_impurity
+            # Left and Right Counters
+            target_left_counter = np.array([0] * self.num_targets)
+            target_left_counter[y_sorted[0]] += 1
+            target_right_counter = np.bincount(y_sorted)
+            target_right_counter[y_sorted[0]] -= 1
+            
+            # Loop through data
+            for j in range(1, num_samples-1):
                 
+                # Target Counters
+                target_left_counter[y_sorted[j]] += 1
+                target_right_counter[y_sorted[j]] -= 1
+
+                # Skip identical thresholds
+                if (j < num_samples - 1): # Only check up to 2nd to the last sample
+                    if (thresholds[j] == thresholds[j+1]) and (j < num_samples - 1):
+                        continue
+
+                # Computer impurities
+                left_weight = ((j + 1) / num_samples)
+                right_weight = ((num_samples - j - 1) / num_samples)
+                left_impurity = self.impurity_function(target_left_counter)
+                right_impurity = self.impurity_function(target_right_counter)
+                impurity = left_weight * left_impurity + right_weight * right_impurity
+
                 # Compare with the best impurity
                 if impurity < best_impurity:
+                    left_mask, right_mask = sorted_indices[:(j+1)], sorted_indices[(j+1):]
+                    left_data = ( X[left_mask], y[left_mask] )
+                    right_data = ( X[right_mask], y[right_mask] )
                     best_split = (left_data, right_data)
                     best_impurity = impurity
                     best_feature = i
-                    best_threshold = threshold
+                    best_threshold = thresholds[j]
 
         # If no best split
         # Return (data split, feature/feature name, feature threshold)
@@ -168,7 +187,6 @@ class DecisionTree():
         num_samples_left = best_split[0][0].shape[0]
         num_samples_right = best_split[1][0].shape[0]
         if (num_samples_left == 0) or (num_samples_right == 0):
-            print("im here")
             return None, None, None
 
         # Normally we would compare the parent's impurities to the 
@@ -261,12 +279,53 @@ class DecisionTree():
             print(f"{indent}  Right:")
             self.right_node.visualize_decision_nodes(depth + 1)
 
+    ######################################################################################################
+    #
+    #                    Impurity Methods (Fast) | Supposedly methods of a Node Class
+    #
+    ######################################################################################################
 
-    ######################################################################################################
-    #
-    #                        Impurity Methods | Supposedly methods of a Node Class
-    #
-    ######################################################################################################
+    # For Classification
+    def _compute_gini_impurity(self, 
+        target_count: np.ndarray
+    ) -> float:
+        
+        num_samples = np.sum(target_count)
+        target_dist = target_count / num_samples
+        gini_impurity = np.sum(target_dist * (1-target_dist))
+
+        return gini_impurity
+    
+    # For Classification
+    def _compute_entropy(self,
+        target_count: np.ndarray
+    ) -> float:
+        
+        num_samples = np.sum(target_count)
+        target_dist = target_count / num_samples
+        target_dist = target_dist[target_dist > 0]                  # Remove zero probabilities
+        entropy = -1 * np.sum(target_dist * np.log2(target_dist))   # Zero prob results to log undef
+
+        return entropy
+    
+    # For Regression
+    # No Speedup
+    # To be implemented
+    def _compute_variance(self,
+        target_count: np.ndarray
+    ) -> float:
+        
+        num_samples = y.shape[0]
+        if num_samples == 0:
+            return 0
+        
+        insides = y - np.mean(y)
+        squares = np.power(insides, 2)
+        variance = np.mean(squares)
+
+        return variance
+
+    # Computer Target distribution using y values
     def _compute_target_dist(self, 
         y: np.ndarray
     ) -> float:
@@ -279,8 +338,14 @@ class DecisionTree():
 
         return target_dist
 
+    ######################################################################################################
+    #
+    #                    Impurity Methods (Naive) | Supposedly methods of a Node Class
+    #
+    ######################################################################################################
+
     # For Classification
-    def _compute_gini_impurity(self, 
+    def _compute_gini_impurity_naive(self, 
         y: np.ndarray
     ) -> float:
         
@@ -290,7 +355,7 @@ class DecisionTree():
         return gini_impurity
     
     # For Classification
-    def _compute_entropy(self,
+    def _compute_entropy_naive(self,
         y: np.ndarray
     ) -> float:
         
@@ -301,7 +366,7 @@ class DecisionTree():
         return entropy
     
     # For Regression
-    def _compute_variance(self,
+    def _compute_variance_naive(self,
         y: np.ndarray
     ) -> float:
         
