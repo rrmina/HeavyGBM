@@ -141,16 +141,14 @@ class DecisionTreeClassifier():
             sorted_indices = np.argsort(X_i)
             thresholds, y_sorted = X_i[sorted_indices], y[sorted_indices]
 
-            # Left and Right Counters
+            # Left and Right Count Trackers
             target_left_counter = np.array([0] * self.num_targets)
-            target_left_counter[y_sorted[0]] += 1
             target_right_counter = np.bincount(y_sorted)
-            target_right_counter[y_sorted[0]] -= 1
             
             # Loop through data
-            for j in range(1, num_samples-1):
+            for j in range(num_samples-1):
                 
-                # Target Counters
+                # Target Count Trackers
                 target_left_counter[y_sorted[j]] += 1
                 target_right_counter[y_sorted[j]] -= 1
 
