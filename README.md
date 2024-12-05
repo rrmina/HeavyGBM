@@ -9,3 +9,4 @@ Growing trees one at a time.
 - [ ] Task 3: Support NaNs in DecisionTrees  
 - [ ] Task 4: Support Binning in find_best_split()
 - [ ] Task 5: GradientBoostedTrees
+- [ ] Task 6: Rankers
