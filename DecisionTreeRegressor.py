@@ -17,7 +17,7 @@ class DecisionTreeRegressor():
         # Impurity Functions
         self.impurity_measure = impurity_measure
         impurity_functions = {
-            'variance': self._compute_variance_naive
+            'variance': self._compute_variance
         }
         self.impurity_function = impurity_functions[impurity_measure]
 
@@ -119,33 +119,55 @@ class DecisionTreeRegressor():
         best_threshold = None
         best_feature = None
 
-        num_samples, num_feautures = X.shape[0], X.shape[1]
-        for i in range(num_feautures):
+        # Total Sums of y and y^2
+        total_target_sum_y = np.sum(y)
+        total_target_sum_y2 = np.sum(np.square(y))
 
+        # Loop through features
+        num_samples, num_features = X.shape[0], X.shape[1]
+        for i in range(num_features):
+
+            # Sorted samples by feature values
+            X_i = X[:, i]
+            sorted_indices = np.argsort(X_i)
+            X_sorted = X[sorted_indices]
+            thresholds = X_sorted[:, i]
+            y_sorted = y[sorted_indices]
+
+            # Track cumulative sums
+            target_left_sum_y = 0
+            target_left_sum_y2 = 0
+
+            # Loop though thresholds
             # TO BE IMPROVED by using buckets / histograms
             # Find the threshold with the least impurity
-            thresholds = np.unique(X[:, i])      
-            for threshold in thresholds:
-                left_data, right_data = self.split_data(X, i, y, threshold)
-                X_left, y_left = left_data
-                X_right, y_right = right_data
+            for j in range(num_samples-1):
+                target_left_sum_y += y_sorted[j]
+                target_left_sum_y2 += y_sorted[j]**2
+                target_right_sum_y = total_target_sum_y - target_left_sum_y
+                target_right_sum_y2 = total_target_sum_y2 - target_left_sum_y2
 
-                # Skip the lowest and highest values because no split
-                if (X_left.shape[0] == 0) or (X_right.shape[0] == 0):
-                    continue
+                # Skip identical thresholds
+                if (j < (num_samples - 1)): # Only check up to 2nd to the last sample
+                    if (thresholds[j] == thresholds[j+1]):
+                        continue
 
-                # Compute impurity
-                left_impurity = self.impurity_function(y_left)
-                right_impurity = self.impurity_function(y_right)
-                impurity = (y_left.shape[0] / y.shape[0]) * left_impurity + \
-                    (y_right.shape[0] / y.shape[0]) * right_impurity
-                
+                # Computer impurities
+                left_weight = ((j + 1) / num_samples)
+                right_weight = ((num_samples - j - 1) / num_samples)
+                left_impurity = self.impurity_function(target_left_sum_y2, target_left_sum_y, j+1)
+                right_impurity = self.impurity_function(target_right_sum_y2, target_right_sum_y, num_samples - j - 1)
+                impurity = left_weight * left_impurity + right_weight * right_impurity
+
                 # Compare with the best impurity
                 if impurity < best_impurity:
+                    left_mask, right_mask = sorted_indices[:(j+1)], sorted_indices[(j+1):]
+                    left_data = ( X[left_mask], y[left_mask] )
+                    right_data = ( X[right_mask], y[right_mask] )
                     best_split = (left_data, right_data)
                     best_impurity = impurity
                     best_feature = i
-                    best_threshold = threshold
+                    best_threshold = thresholds[j]
 
         # If no best split
         # Return (data split, feature/feature name, feature threshold)
@@ -166,90 +188,6 @@ class DecisionTreeRegressor():
         # will always be less or equal to the parent's impurities
 
         return best_split, best_feature, best_threshold
-
-    # def find_best_split_fast(self,
-    #     X: np.ndarray, 
-    #     y: np.ndarray
-    # ) -> Tuple[
-    #     Tuple[Tuple[np.ndarray, np.ndarray], Tuple[np.ndarray, np.ndarray]],    # Left Data and Right Data
-    #     Union[int, str],                                                        # Feature index or feature name 
-    #     float                                                                   # Threshold
-    # ]:
-        
-    #     # Find the best split
-    #     best_split = None
-    #     best_impurity = np.inf
-    #     best_threshold = None
-    #     best_feature = None
-
-    #     num_samples, num_features = X.shape[0], X.shape[1]
-
-    #     for i in range(num_features):
-
-    #         # TO BE IMPROVED by using buckets / histograms
-    #         # [Done] Improvement #1 : Sort the values and use Tracking Variables
-    #         # [WIP] Improvement #2 : Using buckets
-    #         # Find the threshold with the least impurity
-    #         X_i = X[:, i]
-    #         sorted_indices = np.argsort(X_i)
-    #         thresholds, y_sorted = X_i[sorted_indices], y[sorted_indices]
-
-    #         # Trackers Sum(y^2) , Sum(y)
-    #         y_sorted_squared = np.power(y_sorted, 2)
-    #         target_left_sum_y2 = y_sorted_squared[0]
-    #         target_left_sum_y = y_sorted[0]
-    #         target_right_sum_y2 = np.sum(y_sorted_squared) - y_sorted_squared[0]
-    #         target_right_sum_y = np.sum(y_sorted) - y_sorted[0]
-            
-    #         # Loop through data
-    #         for j in range(1, num_samples-1):
-                
-    #             # Update the Target Trackers
-    #             target_left_sum_y2 += y_sorted_squared[j]
-    #             target_left_sum_y += y_sorted[j]
-    #             target_right_sum_y2 -= y_sorted_squared[j]
-    #             target_right_sum_y -= y_sorted[j]
-
-    #             # Skip identical thresholds
-    #             if (j < num_samples - 1): # Only check up to 2nd to the last sample
-    #                 if (thresholds[j] == thresholds[j+1]) and (j < num_samples - 1):
-    #                     continue
-
-    #             # Computer impurities
-    #             left_weight = ((j + 1) / num_samples)
-    #             right_weight = ((num_samples - j - 1) / num_samples)
-    #             left_impurity = self.impurity_function(target_left_sum_y2, target_left_sum_y, j+1)
-    #             right_impurity = self.impurity_function(target_right_sum_y2, target_right_sum_y, j+1)
-    #             impurity = left_weight * left_impurity + right_weight * right_impurity
-
-    #             # Compare with the best impurity
-    #             if impurity < best_impurity:
-    #                 left_mask, right_mask = sorted_indices[:(j+1)], sorted_indices[(j+1):]
-    #                 left_data = ( X[left_mask], y[left_mask] )
-    #                 right_data = ( X[right_mask], y[right_mask] )
-    #                 best_split = (left_data, right_data)
-    #                 best_impurity = impurity
-    #                 best_feature = i
-    #                 best_threshold = thresholds[j]
-
-    #     # If no best split
-    #     # Return (data split, feature/feature name, feature threshold)
-    #     if best_split is None:
-    #         return None, None, None
-
-    #     # If same number of samples after best split, return None
-    #     # TO BE IMPROVED
-    #     # Do we need this?
-    #     num_samples_left = best_split[0][0].shape[0]
-    #     num_samples_right = best_split[1][0].shape[0]
-    #     if (num_samples_left == 0) or (num_samples_right == 0):
-    #         return None, None, None
-
-    #     # Normally we would compare the parent's impurities to the 
-    #     # children's impurities. But mathematically, the children's impurities 
-    #     # will always be less or equal to the parent's impurities
-
-    #     return best_split, best_feature, best_threshold
     
     def split_data(self,
         X: np.ndarray,
@@ -342,7 +280,9 @@ class DecisionTreeRegressor():
         n
     ) -> float:
         
-        variance = target_sum_y2 / n - ((n-1) / n) * (target_sum_y / n)**2
+        # Biased Variance
+        variance = (target_sum_y2 / n) - (target_sum_y / n) ** 2
+
         return variance
 
     ######################################################################################################
