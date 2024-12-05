@@ -19,16 +19,14 @@ class DecisionTreeClassifier():
         self.impurity_measure = impurity_measure
         impurity_functions = {
             'gini': self._compute_gini_impurity,
-            'entropy': self._compute_entropy,
-            'variance': self._compute_variance
+            'entropy': self._compute_entropy
         }
         self.impurity_function = impurity_functions[impurity_measure]
 
         # And Prediction Storage Functions
         pred_storage_functions = {
             'gini': self._store_classification_pred,
-            'entropy': self._store_classification_pred,
-            'variance': self._store_regression_pred
+            'entropy': self._store_classification_pred
         }
         self.pred_storage_function = pred_storage_functions[impurity_measure]
 
@@ -305,23 +303,6 @@ class DecisionTreeClassifier():
         entropy = -1 * np.sum(target_dist * np.log2(target_dist))   # Zero prob results to log undef
 
         return entropy
-    
-    # For Regression
-    # No Speedup
-    # To be implemented
-    def _compute_variance(self,
-        target_count: np.ndarray
-    ) -> float:
-        
-        num_samples = y.shape[0]
-        if num_samples == 0:
-            return 0
-        
-        insides = y - np.mean(y)
-        squares = np.power(insides, 2)
-        variance = np.mean(squares)
-
-        return variance
 
     # Computer Target distribution using y values
     def _compute_target_dist(self, 
@@ -362,19 +343,3 @@ class DecisionTreeClassifier():
         entropy = -1 * np.sum(target_dist * np.log2(target_dist))   # Zero prob results to log undef
 
         return entropy
-    
-    # For Regression
-    def _compute_variance_naive(self,
-        y: np.ndarray
-    ) -> float:
-        
-        num_samples = y.shape[0]
-        if num_samples == 0:
-            return 0
-        
-        insides = y - np.mean(y)
-        squares = np.power(insides, 2)
-        variance = np.mean(squares)
-
-        return variance
-    

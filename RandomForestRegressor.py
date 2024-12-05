@@ -2,15 +2,14 @@ import numpy as np
 from typing import Tuple
 from concurrent.futures import ThreadPoolExecutor
 
-from DecisionTreeClassifier import DecisionTreeClassifier
+from DecisionTreeRegressor import DecisionTreeRegressor
 
-class RandomForestClassifier():
+class RandomForestRegressor():
     def __init__(self,
         num_trees: int = 5,
         min_samples_per_node: int = 5,
         max_depth: int = np.inf,
-        impurity_measure: str = 'gini',
-        num_targets: int = None
+        impurity_measure: str = 'variance'
     ) -> None:
 
         # Random Forest Hyperparameters
@@ -19,7 +18,6 @@ class RandomForestClassifier():
         # Decision Tree Hyperparameters
         self.min_samples_per_node = min_samples_per_node
         self.max_depth = max_depth
-        self.num_targets = num_targets
 
         # Impurity Functions
         self.impurity_measure = impurity_measure
@@ -35,11 +33,10 @@ class RandomForestClassifier():
             X_sampled, y_sampled = self.sample_dataset_with_replacement(X, y)
 
             # Train a decision tree
-            tree = DecisionTreeClassifier(
+            tree = DecisionTreeRegressor(
                 min_samples_per_node = self.min_samples_per_node,
                 max_depth = self.max_depth,
-                impurity_measure = self.impurity_measure,
-                num_targets = self.num_targets
+                impurity_measure = self.impurity_measure
             ).build_tree(X_sampled, y_sampled)
 
             return tree
@@ -61,11 +58,10 @@ class RandomForestClassifier():
             X_sampled, y_sampled = self.sample_dataset_with_replacement(X, y)
 
             # Train a decision tree
-            tree = DecisionTreeClassifier(
+            tree = DecisionTreeRegressor(
                 min_samples_per_node = self.min_samples_per_node,
                 max_depth = self.max_depth,
-                impurity_measure = self.impurity_measure,
-                num_targets = self.num_targets
+                impurity_measure = self.impurity_measure
             ).build_tree(X_sampled, y_sampled)
 
             # Store the decision tree
@@ -76,7 +72,7 @@ class RandomForestClassifier():
     # Currently, inference can only predict for one sample at a time
     def predict(self, 
         X: np.ndarray
-    ) -> int:
+    ) -> float:
         
         # Instead of using for-loop, we can do the inference in parallel
         pred = 0
@@ -84,9 +80,6 @@ class RandomForestClassifier():
             pred += self.forest[i].predict(X)
 
         pred = pred / self.num_trees
-
-        # Half Round-up Trick
-        pred = int(pred + 0.5)
 
         return pred
 
