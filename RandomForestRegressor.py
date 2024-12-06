@@ -1,7 +1,7 @@
+from __future__ import annotations # For type hinting my own class!
 import numpy as np
 from typing import Tuple
 from concurrent.futures import ThreadPoolExecutor
-from __future__ import annotations # For type hinting my own class!
 
 from DecisionTreeRegressor import DecisionTreeRegressor
 
@@ -10,7 +10,8 @@ class RandomForestRegressor():
         num_trees: int = 5,
         min_samples_per_node: int = 5,
         max_depth: int = np.inf,
-        impurity_measure: str = 'variance'
+        impurity_measure: str = 'variance',
+        num_targets: int = 1
     ) -> None:
 
         # Random Forest Hyperparameters
@@ -19,6 +20,7 @@ class RandomForestRegressor():
         # Decision Tree Hyperparameters
         self.min_samples_per_node = min_samples_per_node
         self.max_depth = max_depth
+        self.num_targets = num_targets
 
         # Impurity Functions
         self.impurity_measure = impurity_measure
@@ -41,7 +43,8 @@ class RandomForestRegressor():
             tree = DecisionTreeRegressor(
                 min_samples_per_node = self.min_samples_per_node,
                 max_depth = self.max_depth,
-                impurity_measure = self.impurity_measure
+                impurity_measure = self.impurity_measure,
+                num_targets = self.num_targets
             ).build_tree(X_sampled, y_sampled)
 
             # Store the decision tree
@@ -63,7 +66,8 @@ class RandomForestRegressor():
             tree = DecisionTreeRegressor(
                 min_samples_per_node = self.min_samples_per_node,
                 max_depth = self.max_depth,
-                impurity_measure = self.impurity_measure
+                impurity_measure = self.impurity_measure,
+                num_targets = self.num_targets
             ).build_tree(X_sampled, y_sampled)
 
             return tree

@@ -7,12 +7,14 @@ class DecisionTreeRegressor():
     def __init__(self,
         min_samples_per_node: int = 5,
         max_depth: int = 5,
-        impurity_measure: str = 'variance'
+        impurity_measure: str = 'variance',
+        num_targets: int = 1    # Set to more than 1 if multi-output regressor
     ) -> None:
 
         # Decision Tree Hyperparameters
         self.min_samples_per_node = min_samples_per_node
         self.max_depth = max_depth
+        self.num_targets = num_targets
 
         # Impurity Functions
         self.impurity_measure = impurity_measure
@@ -49,6 +51,10 @@ class DecisionTreeRegressor():
         depth: int = 1
     ) -> DecisionTreeRegressor:
         
+        # Ensure y is a 2D array (general support for multi-output regression)
+        if len(y.shape) == 1:
+            y = y.reshape(-1, 1)
+
         # Store depth
         self.depth = depth
 
@@ -120,8 +126,8 @@ class DecisionTreeRegressor():
         best_feature = None
 
         # Total Sums of y and y^2
-        total_target_sum_y = np.sum(y)
-        total_target_sum_y2 = np.sum(np.square(y))
+        total_target_sum_y = np.sum(y, axis=0)          # Sum for each target
+        total_target_sum_y2 = np.sum((y**2), axis=0)     # Sum of square for each target
 
         # Loop through features
         num_samples, num_features = X.shape[0], X.shape[1]
@@ -215,7 +221,7 @@ class DecisionTreeRegressor():
 
     def predict(self, 
         X: np.ndarray
-    ) -> Union[int, float]:
+    ) -> np.ndarray:
         
         # If node is a leaf
         if self.left_node is None and self.right_node is None:
@@ -231,7 +237,8 @@ class DecisionTreeRegressor():
     def _store_regression_pred(self, 
         y: np.ndarray   # float
     ) -> float:
-        best_pred = np.mean(y)
+        
+        best_pred = np.mean(y, axis=0)  # Compute mean for each target
         
         return best_pred
 
@@ -281,9 +288,14 @@ class DecisionTreeRegressor():
     ) -> float:
         
         # Biased Variance
-        variance = (target_sum_y2 / n) - (target_sum_y / n) ** 2
+        variance_per_target = (target_sum_y2 / n) - (target_sum_y / n) ** 2
+        aggregated_variance = np.mean(variance_per_target)
 
-        return variance
+        # Unbiased Variance
+        # variance_per_target = (target_sum_y2 / n) - ((n-1) / n) * (target_sum_y / n) ** 2
+        # aggregated_variance = np.mean(variance_per_target)
+
+        return aggregated_variance
 
     ######################################################################################################
     #
@@ -300,9 +312,7 @@ class DecisionTreeRegressor():
         if num_samples == 0:
             return 0
         
-        insides = y - np.mean(y)
-        squares = np.power(insides, 2)
-        variance = np.mean(squares)
+        variance = np.mean( (y - np.mean(y)) ** 2 )
 
         return variance
     
