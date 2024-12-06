@@ -1,6 +1,7 @@
 import numpy as np
 from typing import Tuple
 from concurrent.futures import ThreadPoolExecutor
+from __future__ import annotations # For type hinting my own class!
 
 from DecisionTreeClassifier import DecisionTreeClassifier
 
@@ -26,8 +27,35 @@ class RandomForestClassifier():
         
         # The Forest
         self.forest = []
+    
+    def build_forest(self,
+        X: np.ndarray,
+        y: np.ndarray
+    ) -> RandomForestClassifier:
 
-    def build_forest(self, X, y):
+        # Instead of using for-loop. We can do the bagging and training in parallel
+        for _ in range(self.num_trees):
+
+            # Sample with replacement
+            X_sampled, y_sampled = self.sample_dataset_with_replacement(X, y)
+
+            # Train a decision tree
+            tree = DecisionTreeClassifier(
+                min_samples_per_node = self.min_samples_per_node,
+                max_depth = self.max_depth,
+                impurity_measure = self.impurity_measure,
+                num_targets = self.num_targets
+            ).build_tree(X_sampled, y_sampled)
+
+            # Store the decision tree
+            self.forest.append(tree)
+
+        return self
+    
+    def build_forest_experimental(self,
+        X: np.ndarray,
+        y: np.ndarray
+    ) -> RandomForestClassifier:
 
         # Defining a new function for parallel execution
         def train_tree():
@@ -49,27 +77,6 @@ class RandomForestClassifier():
             self.forest = list(
                 executor.map(lambda _: train_tree(), range(self.num_trees))
             )
-
-        return self
-    
-    def build_forest_legacy(self, X, y):
-
-        # Instead of using for-loop. We can do the bagging and training in parallel
-        for _ in range(self.num_trees):
-
-            # Sample with replacement
-            X_sampled, y_sampled = self.sample_dataset_with_replacement(X, y)
-
-            # Train a decision tree
-            tree = DecisionTreeClassifier(
-                min_samples_per_node = self.min_samples_per_node,
-                max_depth = self.max_depth,
-                impurity_measure = self.impurity_measure,
-                num_targets = self.num_targets
-            ).build_tree(X_sampled, y_sampled)
-
-            # Store the decision tree
-            self.forest.append(tree)
 
         return self
     
