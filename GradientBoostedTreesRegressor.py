@@ -38,6 +38,8 @@ class GradientBoostedTreesRegressor():
         
         # Initialize the targets
         y_t = np.array(deepcopy(y), np.float64)
+        if len(y_t.shape) == 1:
+            y_t = y_t.reshape(-1,1)
 
         # Gradient Boosting is a progressive process so we can not parallelize
         num_samples = y_t.shape[0]
