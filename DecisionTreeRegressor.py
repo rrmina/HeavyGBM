@@ -230,10 +230,6 @@ class DecisionTreeRegressor():
 
                     # Target Sum Trackers
                     # Moved the sum trackers to the end of for loop to accomodate Null edge-cases
-                    # if j == 0:
-                    #     print(y_null)
-                    # print(self.num_targets, nullsum_y, num_null, j, left_sum_y, y_sorted[j])
-
                     left_sum_y += y_sorted[j]
                     left_sum_y2 += y_sorted[j]**2
                     right_sum_y = sum_y - left_sum_y

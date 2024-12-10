@@ -13,7 +13,7 @@ class GradientBoostedTreesRegressor():
         max_depth: int = np.inf,
         loss_measure: str = 'mse',
         impurity_measure: str = 'variance',
-        num_targets: int = None
+        num_targets: int = 1
     ) -> None:
         
         # Gradient Boosted Trees Hyperparameters
@@ -50,7 +50,7 @@ class GradientBoostedTreesRegressor():
                 min_samples_per_node = self.min_samples_per_node,
                 max_depth = self.max_depth,
                 impurity_measure = self.impurity_measure,
-                # num_targets = self.num_targets
+                num_targets = self.num_targets
             ).build_tree(X, y_t)
 
             # Store the decision tree
