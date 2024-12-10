@@ -1,7 +1,7 @@
+from __future__ import annotations # For type hinting my own class!
 import numpy as np
 from typing import Tuple
 from concurrent.futures import ThreadPoolExecutor
-from __future__ import annotations # For type hinting my own class!
 
 from DecisionTreeClassifier import DecisionTreeClassifier
 
@@ -38,6 +38,14 @@ class RandomForestClassifier():
 
             # Sample with replacement
             X_sampled, y_sampled = self.sample_dataset_with_replacement(X, y)
+
+            # Missing step is to take only sqrt(num_features) as sampled data
+            # [WIP] Only bag for sqrt(num_features) of features for each dataset
+            # We would need a mapping in of feature_index in training and inference
+            # Alternatively, we could assign names to each feature for more readable indexing 
+            # ^ in other words, use Pandas!
+            # pass
+            # pass
 
             # Train a decision tree
             tree = DecisionTreeClassifier(
