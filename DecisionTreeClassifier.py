@@ -212,7 +212,7 @@ class DecisionTreeClassifier():
 
                     # Compare with the best impurity
                     if impurity < best_impurity:
-                        left_mask, right_mask = sorted_indices[:(j+1)], sorted_indices[(j+1):]
+                        left_mask, right_mask = sorted_indices[:j], sorted_indices[j:]
 
                         if null_direction == 'left':
                             left_data = (
