@@ -1,7 +1,7 @@
 from __future__ import annotations # For type hinting my own class!
 
 import numpy as np
-from typing import Tuple, Union
+from typing import Tuple, Union, Optional
 
 class DecisionTreeClassifier():
     def __init__(self,
@@ -42,6 +42,7 @@ class DecisionTreeClassifier():
         self.splitting_feature = None
         self.splitting_threshold = None
         self.pred = None
+        self.null_direction = None
 
     ######################################################################################################
     #
@@ -65,16 +66,18 @@ class DecisionTreeClassifier():
             return self
 
         # Get the Decision Split and the Data Split
-        data_splits, feature_index, threshold = self.find_best_split(X, y)
+        data_splits, feature_index, threshold, null_direction = self.find_best_split(X, y)
         if data_splits is None:
-            # Store the prediction
+            # Store the prediction and null direction
             self.pred = self.pred_storage_function(y)
+            self.null_direction = null_direction
             return self
         self.splitting_feature = feature_index
         self.splitting_threshold = threshold
 
-        # Store the prediction
+        # Store the prediction and null direction
         self.pred = self.pred_storage_function(y)
+        self.null_direction = null_direction
 
         # Build Left and Right (Children) Tree
         (X_left, y_left), (X_right, y_right) = data_splits 
@@ -118,7 +121,8 @@ class DecisionTreeClassifier():
     ) -> Tuple[
         Tuple[Tuple[np.ndarray, np.ndarray], Tuple[np.ndarray, np.ndarray]],    # Left Data and Right Data
         Union[int, str],                                                        # Feature index or feature name 
-        float                                                                   # Threshold
+        float,                                                                  # Threshold
+        Union[None, str]                                                        # Null Direction / Optional[str]
     ]:
         
         # Find the best split
@@ -126,6 +130,7 @@ class DecisionTreeClassifier():
         best_impurity = np.inf
         best_threshold = None
         best_feature = None
+        best_null_direction = None
 
         num_samples, num_features = X.shape[0], X.shape[1]
 
@@ -134,48 +139,109 @@ class DecisionTreeClassifier():
             # TO BE IMPROVED by using buckets / histograms
             # [Done] Improvement #1 : Sort the values and use Counter
             # [WIP] Improvement #2 : Using buckets
+            # [WIP] Feature #1 : Handling NULL Values 
             # Find the threshold with the least impurity
             X_i = X[:, i]
-            sorted_indices = np.argsort(X_i)
-            thresholds, y_sorted = X_i[sorted_indices], y[sorted_indices]
+            null_idx = np.where(np.isnan(X_i))[0]
+            nonnull_idx = list(set(range(num_samples)) - set(null_idx))
 
-            # Left and Right Count Trackers
-            target_left_counter = np.array([0] * self.num_targets)
-            target_right_counter = np.bincount(y_sorted)
-            
-            # Loop through data
-            for j in range(num_samples-1):
+            # Separate NULL and Non-NULL datasets
+            X_i_null, X_null, y_null = X_i[null_idx], X[null_idx], y[null_idx]
+            X_i_nonnull, X_nonnull, y_nonnull = X_i[nonnull_idx], X[nonnull_idx], y[nonnull_idx]
+            num_null, num_nonnull = X_i_null.shape[0], X_i_nonnull.shape[0]
+
+            # Sort the thresholds of Non-NULL X_i
+            sorted_indices = np.argsort(X_i_nonnull)
+            thresholds, y_sorted = X_i_nonnull[sorted_indices], y_nonnull[sorted_indices]
+
+            # Check if there are null feature values and set the correct direction pools
+            if num_null > 0:
+                null_directions = ['left', 'right']
+            else:
+                null_directions = [None]
+
+            # Loop through Null Splitting Directions
+            for null_direction in null_directions:
                 
-                # Target Count Trackers
-                target_left_counter[y_sorted[j]] += 1
-                target_right_counter[y_sorted[j]] -= 1
+                # Left and Right Count Trackers
+                target_left_counter = np.array([0] * self.num_targets)
+                target_right_counter = np.bincount(y_sorted, minlength=self.num_targets)
 
-                # Skip identical thresholds
-                if (j < num_samples - 1): # Only check up to 2nd to the last sample
-                    if (thresholds[j] == thresholds[j+1]) and (j < num_samples - 1):
-                        continue
+                # Add the target counters from null features
+                # The reason for this is we always treat the Null value as the first 
+                # element in an array of sorted thresholds, when we use the Counter
+                # increment optimization
+                if null_direction is not None:
 
-                # Computer impurities
-                left_weight = ((j + 1) / num_samples)
-                right_weight = ((num_samples - j - 1) / num_samples)
-                left_impurity = self.impurity_function(target_left_counter)
-                right_impurity = self.impurity_function(target_right_counter)
-                impurity = left_weight * left_impurity + right_weight * right_impurity
+                    # Compute the Null target counters
+                    target_null_counter = np.bincount(y_null, minlength=self.num_targets)
 
-                # Compare with the best impurity
-                if impurity < best_impurity:
-                    left_mask, right_mask = sorted_indices[:(j+1)], sorted_indices[(j+1):]
-                    left_data = ( X[left_mask], y[left_mask] )
-                    right_data = ( X[right_mask], y[right_mask] )
-                    best_split = (left_data, right_data)
-                    best_impurity = impurity
-                    best_feature = i
-                    best_threshold = thresholds[j]
+                    # Add the target null counters the initial target counters
+                    # according to the null splitting direction
+                    if null_direction == 'left':
+                        target_left_counter += target_null_counter
+                    else: # right
+                        target_right_counter += target_null_counter
+            
+                # Loop through data
+                for j in range(num_nonnull):    # This feels so wrong (nonnull-1) and pre-adding the target counter
+                                                # with the introduction of Null buckets (Dec 10)
+                                                # Ideally we'd have to do the counter increment at the end of for loop
+
+                    # Skip identical thresholds
+                                                        # Error Edge-case
+                                                        # If all values or at least the last set of values have the same values
+                                                        # They will never be evaluated
+                                                        # Just kidding! This edge-case in prevented by j < (num_nonnull - 1) 
+                                                        # or (num_nonnull) in the null variation
+                    if (j < (num_nonnull) and j != 0):  # Only check up to 2nd to the last sample
+                        if (thresholds[j-1] == thresholds[j]) and (j < num_nonnull):
+                            continue
+
+                    # Compute impurities weights
+                    if null_direction == 'left':
+                        left_weight = (num_null + j) / num_samples
+                    else:
+                        left_weight = j / num_samples
+                    right_weight = 1 - left_weight
+
+                    # Computer impurities
+                    left_impurity = self.impurity_function(target_left_counter)
+                    right_impurity = self.impurity_function(target_right_counter)
+                    impurity = left_weight * left_impurity + right_weight * right_impurity
+
+                    # Compare with the best impurity
+                    if impurity < best_impurity:
+                        left_mask, right_mask = sorted_indices[:(j+1)], sorted_indices[(j+1):]
+
+                        if null_direction == 'left':
+                            left_data = (
+                                np.concatenate([X_null, X_nonnull[left_mask]], axis=0),     # X : [n, f] || [n, f]
+                                np.concatenate([y_null, y_nonnull[left_mask]], axis=0)      # y : [n, ] || [n, ]
+                            )
+                            right_data = (X_nonnull[right_mask], y_nonnull[right_mask])
+                        else:
+                            left_data = (X_nonnull[left_mask], y_nonnull[left_mask])
+                            right_data = (
+                                np.concatenate([X_null, X_nonnull[right_mask]], axis=0),     # X : [n, f] || [n, f]
+                                np.concatenate([y_null, y_nonnull[right_mask]], axis=0)      # y : [n, ] || [n, ]
+                            )
+                                                    
+                        best_split = (left_data, right_data)
+                        best_impurity = impurity
+                        best_feature = i
+                        best_threshold = thresholds[j]
+                        best_null_direction = null_direction
+
+                    # Target Count Trackers
+                    # Move the count trackers to the end of for loop to accomodate Null edge-cases
+                    target_left_counter[y_sorted[j]] += 1
+                    target_right_counter[y_sorted[j]] -= 1
 
         # If no best split
         # Return (data split, feature/feature name, feature threshold)
         if best_split is None:
-            return None, None, None
+            return None, None, None, None
 
         # If same number of samples after best split, return None
         # TO BE IMPROVED
@@ -183,13 +249,13 @@ class DecisionTreeClassifier():
         num_samples_left = best_split[0][0].shape[0]
         num_samples_right = best_split[1][0].shape[0]
         if (num_samples_left == 0) or (num_samples_right == 0):
-            return None, None, None
+            return None, None, None, None
 
         # Normally we would compare the parent's impurities to the 
         # children's impurities. But mathematically, the children's impurities 
         # will always be less or equal to the parent's impurities
 
-        return best_split, best_feature, best_threshold
+        return best_split, best_feature, best_threshold, best_null_direction
     
     def split_data(self,
         X: np.ndarray,
@@ -223,8 +289,20 @@ class DecisionTreeClassifier():
         if self.left_node is None and self.right_node is None:
             return self.pred
         
+        X_i = X[self.splitting_feature]
+
+        if np.isnan(X_i):
+            if self.null_direction is None:
+                pass  # Proceed to real numbers
+                        # Might be wrong!
+            else:
+                if self.null_direction == 'left':
+                    return self.left_node.predict(X)
+                else:   # Right
+                    return self.right_node.predict(X)
+
         # Else traverse the tree by recursion
-        is_left = X[self.splitting_feature] <= self.splitting_threshold
+        is_left = X_i <= self.splitting_threshold
         if is_left:
             return self.left_node.predict(X)
         else:
@@ -263,8 +341,8 @@ class DecisionTreeClassifier():
             print(f"{indent}Leaf Node: Prediction = {self.pred}")
             return
 
-        # Print the current node's feature and threshold
-        print(f"{indent}Node: Feature[{self.splitting_feature}] <= {self.splitting_threshold}")
+        # Print the current node's feature and threshold, and null direction
+        print(f"{indent}Node: Feature[{self.splitting_feature}] <= {self.splitting_threshold} | Null Direction: {self.null_direction}")
 
         # Recur for left and right children
         if self.left_node is not None:
@@ -298,6 +376,8 @@ class DecisionTreeClassifier():
     ) -> float:
         
         num_samples = np.sum(target_count)
+        if num_samples == 0:
+            return 0
         target_dist = target_count / num_samples
         target_dist = target_dist[target_dist > 0]                  # Remove zero probabilities
         entropy = -1 * np.sum(target_dist * np.log2(target_dist))   # Zero prob results to log undef
